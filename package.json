@@ -1,0 +1,13 @@
+{
+  "name": "codex-accounts",
+  "version": "1.0.0",
+  "description": "Codex 多账号管理工具",
+  "type": "module",
+  "bin": {
+    "coa": "./index.js"
+  },
+  "dependencies": {
+    "@inquirer/select": "^5.1.2",
+    "chalk": "^5.0.0"
+  }
+}
