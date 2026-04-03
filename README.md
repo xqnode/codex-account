@@ -1,52 +1,65 @@
-# coa — Codex 账号管理
+[English](README.md) | [中文](README.zh.md)
 
-多个 ChatGPT Plus 账号一键切换，解决 Codex CLI 用量限制。
+# coa — Codex Account Manager
 
-## 安装
+Switch between multiple ChatGPT Plus accounts to work around Codex CLI usage limits.
+
+## Installation
 
 ```bash
 npm install
 npm link
 ```
 
-## 命令
+## Commands
 
 ```bash
-coa add <名字>      # 保存当前登录的账号
-coa list            # 列出所有账号和用量
-coa list --raw      # 显示用量接口原始数据（调试用）
-coa use <名字>      # 切换账号
-coa remove <名字>   # 删除账号
+coa add <name>     # Save the currently logged-in account
+coa list           # List all saved accounts
+coa current        # Show the active account
+coa change         # Interactively select and switch accounts (arrow keys + enter)
+coa use <name>     # Switch directly to a named account
+coa remove <name>  # Delete a saved account
 ```
 
-## 使用流程
+## Workflow
 
 ```bash
-# 登录第一个账号
+# Log in to your first account
 codex login
 coa add work
 
-# 登录第二个账号
+# Log in to your second account
 codex logout
 codex login
 coa add personal
 
-# 查看所有账号
+# View all accounts
 coa list
 
-# 切换账号（切换后重启 codex 生效）
-coa use personal
+# Switch interactively
+coa change
+
+# Or switch directly
+coa use work
 ```
 
-## 原理
+Restart codex after switching for the change to take effect.
 
-Codex 登录后把凭据存在 `~/.codex/auth.json`。
+## How It Works
 
-- `coa add`：把当前 `auth.json` 备份到 `~/.codex-accounts/<名字>.json`
-- `coa use`：把指定账号的备份覆盖回 `~/.codex/auth.json`
-- `coa list`：用每个账号的 token 请求 ChatGPT 接口查询用量
+When you log in, Codex caches credentials at `~/.codex/auth.json`.
 
-## 注意
+- `coa add` copies the current `auth.json` to `~/.codex-accounts/<name>.json`
+- `coa use` / `coa change` copies the chosen account back to `~/.codex/auth.json`
 
-- 切换账号后需要重启 codex 才生效
-- token 有效期约 14 天，过期后重新 `codex login && coa add <名字>` 更新
+Account metadata (email, plan, last used) is stored in `~/.codex-accounts/meta.json`.
+
+## Notes
+
+Tokens expire after ~14 days. To refresh a saved account:
+
+```bash
+codex login
+coa add <name>   # overwrites the existing entry
+```
