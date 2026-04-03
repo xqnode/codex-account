@@ -57,11 +57,11 @@ Display rules:
 Example:
 
 ```text
-yzkj6669 <yzkj6669@163.com> [free] ← 当前
+work <work@example.com> [free] ← 当前
     切换: 刚刚   保存: 今天
     weekly: ███████░░░░ 67% 剩余  6天20小时后重置
 
-yzkj9988 <yzkj9988@163.com> [plus]
+personal <personal@example.com> [plus]
     切换: 14分钟前   保存: 今天
     5h:     ███████████ 100% 剩余  4小时59分钟后重置
     weekly: █░░░░░░░░░░ 13% 剩余  4天18小时后重置
