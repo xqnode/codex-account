@@ -7,7 +7,11 @@ import {
     refreshAllAccountMetadata,
     refreshUsageForAccount,
     cmdUse,
+    cmdAdd,
+    readAuth,      
+    extractEmail,    
 } from './core.js';
+import { exec } from 'child_process';
 
 const app = express();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -16,17 +20,35 @@ app.use(express.json());
 app.use(express.static('public'));
 
 // 获取所有账号列表和状态
+// 获取所有账号列表和状态
 app.get('/api/accounts', (req, res) => {
+    console.log(`\n[${new Date().toLocaleTimeString()}] 🟢 正在刷新账号列表元数据...`);
     try {
         const meta = loadMeta();
-        refreshAllAccountMetadata(meta);
+        
+        // 记录刷新前的账号数量
+        const accountNames = Object.keys(meta.accounts);
+        console.log(`[LOG] 找到 ${accountNames.length} 个本地备份账号: [${accountNames.join(', ')}]`);
+
+        // 执行元数据刷新（同步当前激活状态和账号信息）
+        const changed = refreshAllAccountMetadata(meta);
+        if (changed) {
+            console.log(`[LOG] 检测到账号状态更新，已同步至 meta.json`);
+            saveMeta(meta);
+        }
+
         const list = Object.entries(meta.accounts).map(([name, info]) => ({
             name,
             ...info,
             isCurrent: meta.current === name,
         }));
+
+        console.log(`[LOG] 当前激活账号: ${meta.current || '未指定'}`);
+        console.log(`[${new Date().toLocaleTimeString()}] ✅ 列表数据组装完成`);
+        
         res.json({ accounts: list, current: meta.current });
     } catch (e) {
+        console.error(`[${new Date().toLocaleTimeString()}] ❌ 刷新列表失败:`, e.message);
         res.status(500).json({ error: e.message });
     }
 });
@@ -65,7 +87,64 @@ app.post('/api/refresh', async (req, res) => {
     }
 });
 
+
+// 合并：一键登录并自动保存
+app.post('/api/login-and-auto-save', (req, res) => {
+    const isWin = process.platform === "win32";
+    
+    // Windows: start /wait 会弹出窗口，并在窗口关闭后才回调
+    // /c 表示执行完就关闭窗口
+    const command = isWin 
+        ? 'start /wait cmd /c "codex login"' 
+        : 'codex login';
+
+    console.log("[Process] 正在启动登录进程...");
+
+    exec(command, (error) => {
+        if (error) {
+            console.error("登录失败或被手动关闭:", error);
+            return res.status(500).json({ error: "登录进程被中断" });
+        }
+
+        try {
+            // 第一步：登录窗口已关闭，现在尝试读取新生成的 auth.json
+            const auth = readAuth();
+            if (!auth) throw new Error("登录似乎未完成，找不到凭据");
+
+            // 第二步：自动提取邮箱前缀
+            const email = extractEmail(auth);
+            if (!email) throw new Error("登录成功但无法解析邮箱，请手动保存");
+            
+            const name = email.split('@')[0];
+
+            // 第三步：直接调用核心保存逻辑
+            console.log(`[Process] 检测到账号 ${email}，正在自动保存为 ${name}...`);
+            cmdAdd(name);
+
+            // 第四步：返回给前端成功信号
+            res.json({ success: true, name: name });
+        } catch (e) {
+            console.error("自动保存失败:", e);
+            res.status(500).json({ error: e.message });
+        }
+    });
+});
+
+// 引入 open 工具或使用原生 child_process
 const PORT = 3000;
+const url = `http://localhost:${PORT}`;
+
 app.listen(PORT, () => {
-    console.log(`🚀 界面已启动: http://localhost:${PORT}`);
+    console.log(`🚀 界面已启动: ${url}`);
+
+    // 根据操作系统执行打开浏览器的命令
+    const start = 
+        process.platform === 'darwin' ? 'open' : 
+        process.platform === 'win32' ? 'start' : 
+        'xdg-open';
+    
+    // 延迟 500ms 确保服务已经完全就绪再打开
+    setTimeout(() => {
+        exec(`${start} ${url}`);
+    }, 500);
 });
