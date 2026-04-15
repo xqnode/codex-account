@@ -211,7 +211,8 @@
                 if (!res.ok || (data.usage && data.usage.error)) throw new Error((data.usage && data.usage.error) ? data.usage.error : "刷新接口异常");
                 showToast(`${name} 额度已更新`, "success");
             } catch (e) {
-                showToast(`刷新失败: ${e.message}`, "error");
+                const cleanMsg = e.message.includes('：') ? e.message.split('：').pop() : e.message;
+                showToast(`错误: ${cleanMsg}`, "error");
             } finally {
                 await fetchAccounts();
                 if (svg) svg.classList.remove("animate-spin");
