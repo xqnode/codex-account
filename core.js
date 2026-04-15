@@ -6,6 +6,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import readline from "readline";
+import net from 'net';
 import { fileURLToPath } from "url";
 import { ProxyAgent } from 'undici';
 
@@ -336,33 +337,76 @@ export function mapUsageResponse(data) {
   };
 }
 
+/**
+ * 探测代理端口是否在线
+ * @param {string} proxyUrl 代理地址，例如 http://127.0.0.1:7890
+ * @returns {Promise<boolean>}
+ */
+async function isProxyActive(proxyUrl) {
+    try {
+        const url = new URL(proxyUrl);
+        const port = parseInt(url.port);
+        const host = url.hostname;
+
+        return await new Promise((resolve) => {
+            const socket = net.connect(port, host, () => {
+                socket.end();
+                resolve(true);
+            });
+            socket.setTimeout(500); // 设置 500ms 超时，避免阻塞
+            socket.on('error', () => {
+                socket.destroy();
+                resolve(false);
+            });
+            socket.on('timeout', () => {
+                socket.destroy();
+                resolve(false);
+            });
+        });
+    } catch (e) {
+        return false;
+    }
+}
+
 export async function fetchUsageForAuth(auth) {
-  const accessToken = extractAccessToken(auth);
-  if (!accessToken) throw new Error("账号缺少 access token");
+    const accessToken = extractAccessToken(auth);
+    if (!accessToken) throw new Error("账号缺少 access token");
 
-  // 【注意】这里填你本地科学上网工具的代理端口！
-  // Clash 通常是 http://127.0.0.1:7890
-  // v2rayN 通常是 http://127.0.0.1:10809
-  // 如果你有环境变量，它会优先读取
-  const proxyUrl = process.env.HTTPS_PROXY || process.env.HTTP_PROXY || "http://127.0.0.1:7890";
-  const dispatcher = new ProxyAgent(proxyUrl);
+    const proxyUrl = process.env.HTTPS_PROXY || process.env.HTTP_PROXY || "http://127.0.0.1:7890";
+    
+    // --- 自动检测逻辑 ---
+    // 检测 科学上网
+    let fetchOptions = {
+        method: "GET",
+        headers: {
+            Authorization: `Bearer ${accessToken}`,
+            Accept: "application/json",
+        },
+    };
 
-  const response = await fetch(WHAM_USAGE_URL, {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      Accept: "application/json",
-    },
-    // 将 dispatcher 传给原生的 fetch，强制它走代理
-    dispatcher: dispatcher
-  });
+    const isActive = await isProxyActive(proxyUrl);
+    
+    if (isActive) {
+        console.log(`[Proxy] 检测到代理在线: ${proxyUrl}，正在通过代理连接...`);
+        fetchOptions.dispatcher = new ProxyAgent(proxyUrl);
+    } else {
+        console.log(`[Direct] 未检测到代理或代理未开启，尝试直连...`);
+    }
+    // ------------------
 
-  if (!response.ok) {
-      if (response.status === 401) throw new Error("Token已过期，请重新登录");
-      throw new Error(`usage 接口返回 ${response.status}`);
-  }
-  
-  return response.json();
+    try {
+        const response = await fetch(WHAM_USAGE_URL, fetchOptions);
+
+        if (!response.ok) {
+            if (response.status === 401) throw new Error("Token已过期，请重新登录");
+            throw new Error(`usage 接口返回 ${response.status}`);
+        }
+
+        return await response.json();
+    } catch (error) {
+        // 如果直连和代理都失败了，统一抛出错误
+        throw new Error(`网络请求失败: ${error.message}`);
+    }
 }
 
 export async function refreshUsageForAccount(meta, name, { strict = false } = {}) {
