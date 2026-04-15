@@ -1,122 +1,89 @@
-[English](README.md) | [中文](README.zh.md)
-
 # coa - Codex Account Manager
 
-Switch between multiple Codex accounts and view per-account usage.
+[English](README.md) | [中文](README.zh.md)
 
-## Installation
+Switch between multiple Codex accounts seamlessly and track your usage limits.
+Now upgraded with a **Modern Web Dashboard**, allowing you to visually manage your accounts and monitor `5h/Weekly` limits in real-time.
+
+## 🌟 Key Features
+
+- **Web Dashboard**: A beautiful, responsive UI to manage accounts and refresh limits with a single click.
+- **Visual Status Tracking**: Color-coded progress bars for rate limits. Visually blocks switching to accounts with 0% remaining weekly quota.
+- **Auto-Sync**: Silently refreshes account usage data in the background when the dashboard is active.
+- **Proxy Ready**: Built-in support for local proxies (like Clash) via `undici` to ensure API requests never fail.
+
+## 📦 Installation
 
 ```bash
 npm install
 npm link
 ```
 
-## Commands
+## 🚀 Usage
 
-```bash
+### Mode 1: Web Dashboard (Recommended)
+
+Start the local server:
+
+Bash
+
+```
+node index.js
+```
+
+Then, open your browser and navigate to `http://localhost:3000` to access the visual manager.
+
+### Mode 2: CLI Commands
+
+Bash
+
+```
+# Basic Management
 coa add <name>      # Save the currently logged-in account
-coa list            # List saved accounts
-coa ls              # Alias of "coa list"
-coa list -R         # Refresh usage for all saved accounts via the usage API
-coa ls -R           # Alias of "coa list -R"
-coa list -S         # List accounts, then interactively choose one to switch to
-coa ls -S           # Alias of "coa list -S"
-coa current         # Show the currently logged-in account
-coa current -R      # Refresh usage for the current account via the usage API
-coa change          # Interactively choose and switch accounts
-coa use <name>      # Switch directly to a named account
+coa list            # List saved accounts (alias: coa ls)
 coa remove <name>   # Delete a saved account
+
+# Switching Accounts
+coa use <name>      # Switch directly to a named account
+coa change          # Interactively choose and switch accounts (↑↓ to select)
+coa ls -S           # List accounts, then interactively choose to switch
+
+# Usage & Status
+coa current         # Show the currently active account
+coa current -R      # Force refresh usage for the current account via API
+coa list -R         # Force refresh usage for all saved accounts via API
 ```
 
-Interactive selection supports:
+## 🔄 Standard Workflow
 
-```text
-↑↓ select
-Enter confirm
-Esc cancel
-```
+1. **Log in to your first account**
 
-## What `list -R` Shows
+   Bash
 
-`coa list -R` fetches the most accurate usage data for each saved account from:
+   ```
+   codex login
+   coa add work
+   ```
 
-`https://chatgpt.com/backend-api/wham/usage`
+2. **Log in to your second account**
 
-The tool uses each saved account's own access token, so usage is refreshed per account rather than guessed from local Codex session logs.
+   Bash
 
-Display rules:
+   ```
+   codex logout
+   codex login
+   coa add personal
+   ```
 
-- Free accounts usually show one line: `weekly`
-- Plus accounts can show two lines: `5h` and `weekly`
-- Remaining percentage is color-coded:
-  - `0-10%`: red
-  - `11-40%`: yellow
-  - `41-80%`: orange
-  - `81-100%`: green
+3. **Daily Use** Run `node index.js`, open the dashboard, and click "Switch" on any account card. Restart your Codex client for the changes to take effect.
 
-Example:
+## ⚙️ How It Works
 
-```text
-work <work@example.com> [free] ← 当前
-    切换: 刚刚   保存: 今天
-    weekly: ███████░░░░ 67% 剩余  6天20小时后重置
+- **Token Swapping**: Codex stores credentials in `~/.codex/auth.json`. `coa add` backs this up to `~/.codex-accounts/<name>.json`. Switching simply overwrites the main auth file with the selected backup.
+- **Metadata**: Account emails, plans, and timestamps are stored in `~/.codex-accounts/meta.json`.
+- **Accurate Usage**: Fetches real-time limit data directly from `https://chatgpt.com/backend-api/wham/usage` using each account's isolated access token.
 
-personal <personal@example.com> [plus]
-    切换: 14分钟前   保存: 今天
-    5h:     ███████████ 100% 剩余  4小时59分钟后重置
-    weekly: █░░░░░░░░░░ 13% 剩余  4天18小时后重置
-```
+## ⚠️ Notes
 
-## Workflow
-
-```bash
-# Log in to your first account
-codex login
-coa add work
-
-# Log in to your second account
-codex logout
-codex login
-coa add personal
-
-# View accounts
-coa ls
-
-# Refresh usage
-coa ls -R
-
-# Switch interactively
-coa change
-
-# Or list first, then choose
-coa ls -S
-
-# Or switch directly
-coa use work
-```
-
-Restart Codex after switching for the change to take effect.
-
-## How It Works
-
-Codex stores credentials in:
-
-`~/.codex/auth.json`
-
-Saved account backups are stored in:
-
-`~/.codex-accounts/<name>.json`
-
-Metadata is stored in:
-
-`~/.codex-accounts/meta.json`
-
-Usage refresh uses the saved account token to call:
-
-`https://chatgpt.com/backend-api/wham/usage`
-
-## Notes
-
-- `coa` prevents saving the same account under multiple names by comparing account fingerprints.
-- `coa list` syncs the "current" marker against the actual `~/.codex/auth.json`.
-- If usage refresh fails for an account, `coa` will show an explicit refresh error instead of stale guessed data.
+1. **Token Expiration**: Access tokens generally expire after 14 days. If the dashboard shows an authorization error, log in manually via `codex login` and run `coa add <name>` to overwrite and renew the token.
+2. **Network/Proxy**: `coa` uses Node's native fetch. If you experience `fetch failed` errors during usage refresh, ensure your local proxy (e.g., Clash) is running on the port specified in `core.js` (defaults to HTTP 7890).

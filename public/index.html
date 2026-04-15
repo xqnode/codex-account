@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8" />
+    <title>Codex Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+    <style>
+        .progress-bar {
+            transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        /* 覆盖 Toastify 的默认样式，实现现代卡片风 */
+        .toastify {
+            padding: 12px 16px !important;
+            color: #334155 !important; /* text-slate-700 */
+            background: #ffffff !important;
+            border: 1px solid #e2e8f0 !important; /* border-slate-200 */
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03) !important;
+            border-radius: 12px !important;
+            font-family: inherit !important;
+            font-size: 14px !important;
+            font-weight: 500 !important;
+            display: flex !important;
+            align-items: center !important;
+            gap: 10px !important;
+            /* 关键：让宽度只包裹内容 */
+            width: max-content !important; 
+            max-width: 400px !important;
+        }
+
+        /* 隐藏自带的关闭按钮（因为我们做得很精简了） */
+        .toast-close { display: none !important; }
+        
+        /* 自定义入场和出场动画，更轻快 */
+        .toastify.on { animation: slideInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards !important; }
+        @keyframes slideInUp {
+            from { transform: translate(0, 20px); opacity: 0; }
+            to { transform: translate(0, 0); opacity: 1; }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 p-8 font-sans text-slate-800">
+    <div class="max-w-6xl mx-auto">
+        <header class="flex justify-between items-center mb-8">
+            <h1 class="text-2xl font-extrabold text-slate-800 tracking-tight">Codex Manager</h1>
+            <button
+                onclick="fetchAccounts(true)"
+                id="refreshListBtn"
+                class="flex items-center gap-2 text-sm bg-white border border-slate-200 px-4 py-2 rounded-lg hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all shadow-sm text-slate-600 font-medium"
+            >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                刷新列表
+            </button>
+        </header>
+
+        <div id="accountList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"></div>
+    </div>
+
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+    <script>
+        // --- 核心优化：白底带 Icon 的提示函数 ---
+        function showToast(message, type = 'success') {
+            // 定义不同类型的 Icon 和对应的颜色
+            const icons = {
+                success: `<svg class="w-5 h-5 text-emerald-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>`,
+                error: `<svg class="w-5 h-5 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>`,
+                info: `<svg class="w-5 h-5 text-blue-500 shrink-0 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>`
+            };
+
+            // 把 Icon 和文字拼装成 HTML 扔给 Toastify
+            const node = document.createElement("div");
+            node.className = "flex items-center gap-2.5";
+            node.innerHTML = `
+                ${icons[type]}
+                <span class="truncate">${message}</span>
+            `;
+
+            Toastify({
+                node: node, // 使用自定义的 DOM 节点
+                duration: 2500,
+                gravity: "top", // 出现在顶部
+                position: "center", // 居中
+                stopOnFocus: true,
+            }).showToast();
+        }
+
+        // --- 核心业务逻辑 ---
+        async function fetchAccounts(isManual = false) {
+            const btn = document.getElementById('refreshListBtn');
+            const svg = btn?.querySelector('svg');
+            
+            // 只有手动点击时才显示转圈动画
+            if (isManual && svg) svg.classList.add('animate-spin');
+            
+            try {
+                const res = await fetch("/api/accounts");
+                if (!res.ok) throw new Error("接口请求失败");
+                const data = await res.json();
+                
+                render(data.accounts);
+                
+                // 只有手动点击时才显示“账号列表已刷新”的白色小提示
+                if (isManual) showToast("账号列表已刷新", "success");
+            } catch (e) {
+                console.error("加载失败:", e);
+                if (isManual) showToast("获取列表失败，请检查服务", "error");
+            } finally {
+                if (isManual && svg) svg.classList.remove('animate-spin');
+            }
+        }
+
+        async function switchAccount(name) {
+            try {
+                showToast(`正在切换至 ${name}...`, "info");
+                const res = await fetch("/api/use", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ name }),
+                });
+                
+                if (!res.ok) throw new Error("接口响应异常");
+                
+                setTimeout(() => {
+                    fetchAccounts();
+                    showToast(`已成功切换至 ${name}`, "success");
+                }, 300);
+            } catch (e) {
+                console.error("切换失败:", e);
+                showToast(`切换至 ${name} 失败`, "error");
+            }
+        }
+
+        async function refreshUsage(name, btnElement) {
+            const svg = btnElement.querySelector("svg");
+            if (svg) svg.classList.add("animate-spin");
+            btnElement.disabled = true;
+
+            try {
+                const res = await fetch("/api/refresh", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ name }),
+                });
+                
+                const data = await res.json();
+                if (!res.ok || (data.usage && data.usage.error)) {
+                    throw new Error((data.usage && data.usage.error) ? data.usage.error : "刷新接口异常");
+                }
+
+                showToast(`${name} 额度已更新`, "success");
+            } catch (e) {
+                console.error("刷新额度失败:", e);
+                showToast(`刷新失败: ${e.message}`, "error");
+            } finally {
+                await fetchAccounts();
+                if (svg) svg.classList.remove("animate-spin");
+                btnElement.disabled = false;
+            }
+        }
+
+        // --- 渲染逻辑 ---
+        function render(accounts) {
+            const container = document.getElementById("accountList");
+            container.innerHTML = accounts.map((acc) => {
+                const weeklyUsedPercent = acc.usage?.secondaryUsedPercent;
+                const isWeeklyExhausted = weeklyUsedPercent !== undefined && weeklyUsedPercent !== null && weeklyUsedPercent >= 100;
+
+                let cardBorderClasses = "border-slate-100 hover:border-slate-200 hover:shadow-md"; 
+                if (acc.isCurrent) {
+                    cardBorderClasses = "border-blue-400 ring-4 ring-blue-50"; 
+                } else if (isWeeklyExhausted) {
+                    cardBorderClasses = "border-red-400 ring-2 ring-red-50 bg-red-50/10"; 
+                }
+
+                let btnClasses = "";
+                let btnText = "";
+                let btnDisabled = "";
+
+                if (acc.isCurrent) {
+                    btnClasses = "bg-slate-50 text-slate-400 cursor-default";
+                    btnText = "使用中";
+                    btnDisabled = "disabled";
+                } else if (isWeeklyExhausted) {
+                    btnClasses = "bg-slate-100 text-slate-400 opacity-70 cursor-not-allowed";
+                    btnText = "额度耗尽";
+                    btnDisabled = "disabled";
+                } else {
+                    btnClasses = "bg-blue-50 text-blue-600 hover:bg-blue-500 hover:text-white";
+                    btnText = "切换使用";
+                    btnDisabled = "";
+                }
+
+                let errorHtml = '';
+                if (acc.usage && acc.usage.error) {
+                    errorHtml = `
+                    <div class="mb-4 p-2.5 bg-red-50 border border-red-100 rounded-lg text-xs text-red-500 font-medium flex items-start gap-1">
+                        <svg class="w-4 h-4 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        <span class="break-words line-clamp-2" title="${acc.usage.error}">${acc.usage.error}</span>
+                    </div>`;
+                }
+
+                return `
+                <div class="bg-white p-6 rounded-2xl border ${cardBorderClasses} shadow-sm transition-all relative overflow-hidden group flex flex-col h-full">
+                    ${acc.isCurrent ? '<div class="absolute top-0 left-0 w-full h-1 bg-blue-500"></div>' : ""}
+                    ${isWeeklyExhausted && !acc.isCurrent ? '<div class="absolute top-0 left-0 w-full h-1 bg-red-500"></div>' : ""}
+
+                    <div class="flex justify-between items-start mb-2 mt-1">
+                        <span class="font-bold text-lg text-slate-800">${acc.name}</span>
+                        ${acc.isCurrent ? '<span class="text-[10px] font-bold bg-blue-100 text-blue-600 px-2 py-1 rounded-md tracking-wider">当前激活</span>' : ""}
+                        ${isWeeklyExhausted && !acc.isCurrent ? '<span class="text-[10px] font-bold bg-red-100 text-red-600 px-2 py-1 rounded-md tracking-wider">不可用</span>' : ""}
+                    </div>
+                    <p class="text-sm text-slate-400 mb-5 truncate" title="${acc.email || "未知邮箱"}">${acc.email || "未知邮箱"}</p>
+                    
+                    ${errorHtml}
+
+                    <div class="space-y-4 flex-1">
+                        ${renderBar("5h Limit", acc.usage?.primaryUsedPercent)}
+                        ${renderBar("Weekly", acc.usage?.secondaryUsedPercent)}
+                    </div>
+
+                    <div class="mt-6 flex gap-3">
+                        <button ${btnDisabled} onclick="switchAccount('${acc.name}')" class="flex-1 ${btnClasses} py-2 rounded-xl text-sm font-semibold transition-colors duration-200">
+                            ${btnText}
+                        </button>
+                        <button onclick="refreshUsage('${acc.name}', this)" class="p-2 border border-slate-100 bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-600 rounded-xl transition-colors" title="刷新该账号额度">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                        </button>
+                    </div>
+                </div>
+                `;
+            }).join("");
+        }
+
+        function renderBar(label, percent) {
+            if (percent === null || percent === undefined) return "";
+            const remaining = Math.max(0, Math.min(100, Math.round(100 - percent)));
+
+            let colorClass = "bg-emerald-400";
+            let textColor = "text-slate-600";
+
+            if (remaining <= 10) {
+                colorClass = "bg-red-500";
+                textColor = "text-red-500 font-bold";
+            } else if (remaining <= 40) {
+                colorClass = "bg-amber-400";
+            } else if (remaining <= 80) {
+                colorClass = "bg-orange-400";
+            }
+
+            const visualWidth = Math.max(1.5, remaining);
+
+            return `
+            <div>
+                <div class="flex justify-between text-xs mb-1.5">
+                    <span class="text-slate-400 font-medium">${label}</span>
+                    <span class="${textColor}">${remaining}% 剩余</span>
+                </div>
+                <div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                    <div class="${colorClass} h-full rounded-full progress-bar" style="width: ${visualWidth}%"></div>
+                </div>
+            </div>
+            `;
+        }
+
+        fetchAccounts();
+
+        // --- 自动化逻辑 ---
+
+        /**
+         * 自动刷新定时器
+         * 设置为每 5 分钟 (300000ms) 自动刷新一次
+         * 你可以根据需要调整时间，例如 1 分钟则是 60000
+         */
+        const AUTO_REFRESH_INTERVAL = 300000; 
+
+        setInterval(() => {
+            // 只有当页面处于激活状态（用户正在看）时才自动刷新
+            if (!document.hidden) {
+                console.log("[Auto] 正在后台静默更新额度数据...");
+                // 传入 false，确保自动刷新不会弹出 Toast 提示
+                fetchAccounts(false);
+            }
+        }, AUTO_REFRESH_INTERVAL);
+
+        // 进阶优化：当用户切换回这个标签页时，立即触发一次静默刷新
+        document.addEventListener("visibilitychange", () => {
+            if (!document.hidden) {
+                fetchAccounts(false);
+            }
+        });
+    </script>
+</body>
+</html>
