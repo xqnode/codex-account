@@ -22,6 +22,95 @@ import { exec } from 'child_process';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_COMMANDS = new Set(["add", "list", "ls", "use", "remove", "current", "change"]);
+const BACKGROUND_USAGE_REFRESH_INTERVAL_MS = 3 * 60 * 1000;
+
+let backgroundUsageRefreshRunning = false;
+
+async function refreshAllAccountUsageInBackground() {
+    if (backgroundUsageRefreshRunning) {
+        console.log(`[${new Date().toLocaleTimeString()}] [后台额度刷新] 上一轮仍在执行，跳过本轮`);
+        return;
+    }
+
+    backgroundUsageRefreshRunning = true;
+    const startedAt = new Date();
+
+    try {
+        const meta = loadMeta();
+        const accountNames = Object.keys(meta.accounts || {});
+
+        console.log(`\n[${startedAt.toLocaleTimeString()}] [后台额度刷新] 开始逐个刷新 ${accountNames.length} 个账号`);
+
+        const metadataChanged = refreshAllAccountMetadata(meta);
+        if (metadataChanged) {
+            saveMeta(meta);
+            console.log(`[后台额度刷新] 账号元数据已同步`);
+        }
+
+        if (accountNames.length === 0) {
+            console.log(`[${new Date().toLocaleTimeString()}] [后台额度刷新] 没有可刷新的账号`);
+            return;
+        }
+
+        let successCount = 0;
+        let failCount = 0;
+
+        for (const name of accountNames) {
+            console.log(`[${new Date().toLocaleTimeString()}] [后台额度刷新] 正在请求 usage API: ${name}`);
+
+            try {
+                const requestMeta = loadMeta();
+                const changed = await refreshUsageForAccount(requestMeta, name, { strict: true });
+
+                const usage = requestMeta.accounts[name]?.usage;
+                if (!changed) {
+                    failCount += 1;
+                    console.log(`[${new Date().toLocaleTimeString()}] [后台额度刷新] 跳过 ${name}: 账号文件或凭据缺失`);
+                } else if (usage?.error) {
+                    failCount += 1;
+                    const latestMeta = loadMeta();
+                    if (latestMeta.accounts?.[name]) {
+                        latestMeta.accounts[name] = {
+                            ...latestMeta.accounts[name],
+                            usage,
+                            email: requestMeta.accounts[name]?.email ?? latestMeta.accounts[name].email,
+                            plan: requestMeta.accounts[name]?.plan ?? latestMeta.accounts[name].plan,
+                        };
+                        saveMeta(latestMeta);
+                    }
+                    console.log(`[${new Date().toLocaleTimeString()}] [后台额度刷新] ${name} 刷新失败: ${usage.error}`);
+                } else {
+                    successCount += 1;
+                    const latestMeta = loadMeta();
+                    if (latestMeta.accounts?.[name]) {
+                        latestMeta.accounts[name] = {
+                            ...latestMeta.accounts[name],
+                            usage,
+                            email: requestMeta.accounts[name]?.email ?? latestMeta.accounts[name].email,
+                            plan: requestMeta.accounts[name]?.plan ?? latestMeta.accounts[name].plan,
+                        };
+                        saveMeta(latestMeta);
+                    }
+                    console.log(`[${new Date().toLocaleTimeString()}] [后台额度刷新] ${name} 刷新成功`);
+                }
+            } catch (error) {
+                failCount += 1;
+                console.error(`[${new Date().toLocaleTimeString()}] [后台额度刷新] ${name} 刷新异常:`, error?.message || error);
+            }
+        }
+
+        console.log(`[${new Date().toLocaleTimeString()}] [后台额度刷新] 本轮完成: 成功 ${successCount}，失败/跳过 ${failCount}`);
+    } catch (error) {
+        console.error(`[${new Date().toLocaleTimeString()}] [后台额度刷新] 本轮启动失败:`, error?.message || error);
+    } finally {
+        backgroundUsageRefreshRunning = false;
+    }
+}
+
+function startBackgroundUsageRefresh() {
+    console.log(`[后台额度刷新] 已启用，每 ${BACKGROUND_USAGE_REFRESH_INTERVAL_MS / 60000} 分钟逐个请求 usage API 更新账号额度`);
+    setInterval(refreshAllAccountUsageInBackground, BACKGROUND_USAGE_REFRESH_INTERVAL_MS);
+}
 
 function createApp() {
     const app = express();
@@ -151,6 +240,7 @@ function startDashboard() {
 
     app.listen(PORT, () => {
         console.log(`🚀 界面已启动: ${url}`);
+        startBackgroundUsageRefresh();
 
         // 根据操作系统执行打开浏览器的命令
         const start = 

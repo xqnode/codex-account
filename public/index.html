@@ -280,9 +280,7 @@
             </div>`;
         }
 
-        // 自动刷新逻辑
-        setInterval(() => { if (!document.hidden) fetchAccounts(false); }, 300000);
-        document.addEventListener("visibilitychange", () => { if (!document.hidden) fetchAccounts(false); });
+        // 后台额度刷新由服务端定时执行；前端只在进入页面时读取当前缓存数据。
         fetchAccounts(false);
     </script>
 </body>
