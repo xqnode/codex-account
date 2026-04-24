@@ -15,9 +15,10 @@ Now upgraded with a **Modern Web Dashboard**, allowing you to visually manage yo
 ## 📦 Installation
 
 ```bash
-npm install
-npm link
+npm install -g .
 ```
+
+After installation, the `coa` command is available globally.
 
 ## 🚀 Usage
 
@@ -28,10 +29,10 @@ Start the local server:
 Bash
 
 ```
-node index.js
+coa
 ```
 
-Then, open your browser and navigate to `http://localhost:3000` to access the visual manager.
+The browser opens `http://localhost:37891` automatically. You can also start the dashboard explicitly with `coa dashboard`.
 
 ### Mode 2: CLI Commands
 
@@ -75,7 +76,7 @@ coa list -R         # Force refresh usage for all saved accounts via API
    coa add personal
    ```
 
-3. **Daily Use** Run `node index.js`, open the dashboard, and click "Switch" on any account card. Restart your Codex client for the changes to take effect.
+3. **Daily Use** Run `coa`, open the dashboard, and click "Switch" on any account card. Restart your Codex client for the changes to take effect.
 
 ## ⚙️ How It Works
 

@@ -15,9 +15,10 @@
 ## 📦 安装
 
 ```bash
-npm install
-npm link
+npm install -g .
 ```
+
+安装后即可在任意目录使用全局命令 `coa`。
 
 ## 🚀 使用指南
 
@@ -28,10 +29,10 @@ npm link
 Bash
 
 ```
-node index.js
+coa
 ```
 
-启动后，在浏览器打开 `http://localhost:3000` 即可使用可视化面板管理你的所有账号。
+启动后会自动打开浏览器访问 `http://localhost:37891`。也可以显式运行 `coa dashboard` 启动面板。
 
 ### 模式二：命令行 (CLI) 模式
 
@@ -76,7 +77,7 @@ coa list -R       # 强制从官方接口刷新所有保存账号的 Usage
    coa add personal
    ```
 
-3. **日常使用** 运行 `node index.js` 打开浏览器面板，点击卡片上的“切换使用”即可无缝切换身份。重启你的 Codex 客户端生效。
+3. **日常使用** 运行 `coa` 打开浏览器面板，点击卡片上的“切换使用”即可无缝切换身份。重启你的 Codex 客户端生效。
 
 ## ⚙️ 原理与架构
 
